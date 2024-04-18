@@ -95,30 +95,68 @@ bool Game::checkPlayerCanMove(int x, int y)
 
 void Game::processPlayerMove(QString direction)
 {
+    bool illegal = false;
     if (!m_aiActive) return;
     int x = m_player.posx;
     int y = m_player.posy;
-    if (direction == "up") y -= 1;
-    else if (direction == "down") y += 1;
-    else if (direction == "left") x -= 1;
-    else if (direction == "right") x += 1;
-    else { ui->log->append("Unexpected message received: " + direction); return; }
-    QString move = "ChatGPT requested to move " + direction;
-    bool canMove = checkPlayerCanMove(x, y);
-    if (canMove) {
-        move += " and the move is made";
-        if (m_mapData[y][x] == '=') {
-            move += " and the game is won!";
-            m_gameWon = true;
-            stopAi();
-            ui->buttonStartAi->setEnabled(false);
+    QStringList moves = direction.split(",");
+    for (int move = 0; move < moves.length(); ++move) {
+        if (moves[move] == "up") y -= 1;
+        else if (moves[move] == "down") y += 1;
+        else if (moves[move] == "left") x -= 1;
+        else if (moves[move] == "right") x += 1;
+        else { ui->log->append("Unexpected message received: " + moves[move]); break; }
+        QString moveDescription = "ChatGPT requested to move " + moves[move];
+        bool canMove = checkPlayerCanMove(x, y);
+        if (canMove) {
+            moveDescription.append(QString(" and the move is made. New position is (%1; %2).").arg(x).arg(y));
+            if (m_mapData[y][x] == '=') {
+                moveDescription.append(" and the game is won!");
+                m_gameWon = true;
+                stopAi();
+                ui->buttonStartAi->setEnabled(false);
+                break;
+            }
+            m_player.posx = x;
+            m_player.posy = y;
+            renderMap();
+        } else {
+            moveDescription.append(" but the move is illegal");
+            illegal = true;
         }
-        m_player.posx = x;
-        m_player.posy = y;
-        renderMap();
-    } else
-        move += " but the move is illegal";
-    ui->log->append(move);
+        ui->log->append(moveDescription);
+        if (illegal)
+            break;
+    }
+}
+
+QString Game::getAiPrompt()
+{
+    QString prompt = QString("There is a %1x%2 field where the player has to reach the goal. Cell numbers start from 0. The player can only move one square up, down, left or right. The player cannot step on obstacles. The data is provided below:\n").arg(m_mapSizeX).arg(m_mapSizeY);
+
+    prompt.append(QString("The player position is (%1; %2).\n").arg(m_player.posx).arg(m_player.posy));
+
+    prompt.append("The list of obstacles: ");
+
+    int goalX = -1;
+    int goalY = -1;
+
+    for (int row = 0; row < m_mapSizeY; ++row)
+        for (int column = 0; column < m_mapSizeX; ++column)
+            if (m_mapData[row][column] != '.') {
+                if (m_mapData[row][column] != '=')
+                    prompt += QString("(%1; %2), ").arg(column).arg(row);
+                else {
+                    goalX = column;
+                    goalY = row;
+                }
+            }
+
+    prompt.chop(2);
+    prompt.append(".\n");
+    prompt.append(QString("The goal position is (%1; %2).\n").arg(goalX).arg(goalY));
+    prompt.append("Your response should only contain a list of comma-separated moves that need to be done to reach the goal. The list must not contain spaces, full stops, or any other characters, only letters and commas. The moves should be lowercase words \"up\", \"down\", \"left\" or \"right\". No extra words should be contained in the response.");
+    return prompt;
 }
 
 void Game::startAi()
@@ -143,7 +181,7 @@ void Game::aiLoop()
     try {
         GPT gpt;
         while (m_aiActive)
-            processPlayerMove(gpt.getResponse("There is a map, with the player being marked as \"@\" character. The player can only step on \".\" and \"=\" cells. The player can only step one cell up, down, left or right in one move. The goal is to reach \"=\" character with as less moves as possible. The map will be sent below, respond to it with one word (\"up\", \"down\", \"left\", \"right\") saying what move to make. Always use lower case when responding.\n" + mapToText()));
+            processPlayerMove(gpt.getResponse(getAiPrompt()));
     } catch (AccessException const&) {
         ui->log->append("Unable to access ChatGPT!");
         stopAi();

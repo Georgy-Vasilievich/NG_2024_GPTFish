@@ -38,6 +38,7 @@ private:
     void generateMap();
     bool checkPlayerCanMove(int, int);
     void processPlayerMove(QString);
+    QString getAiPrompt();
 
     Ui::Game *ui;
 

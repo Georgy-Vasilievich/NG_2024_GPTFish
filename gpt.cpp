@@ -14,7 +14,7 @@ bool GPT::getCookies()
     QUrl url = QUrl(m_baseUrl);
 
     QNetworkRequest request(url);
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+    setHeaders(&request, "cookies");
 
     QNetworkReply * reply = m_manager->get(request);
 
@@ -31,22 +31,8 @@ bool GPT::getToken()
 {
     QUrl url = QUrl(m_baseUrl + QString("/backend-anon/sentinel/chat-requirements"));
 
-    QByteArray deviceId;
-
-    for (auto &it : m_cJar->cookiesForUrl(QUrl(m_baseUrl)))
-        if (it.name() == "oai-did") {
-            deviceId = it.value();
-            break;
-        }
-
     QNetworkRequest request(url);
-    request.setRawHeader("Accept", "text/event-stream");
-    request.setRawHeader("Accept-Language", "en-GB,en;q=0.8");
-    request.setRawHeader("oai-device-id", deviceId);
-    request.setRawHeader("oai-language", "en-US");
-    request.setRawHeader("origin", "https://chat.openai.com");
-    request.setRawHeader("referer", "https://chat.openai.com/");
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+    setHeaders(&request, "token");
 
     QNetworkReply * reply = m_manager->post(request, QByteArray(""));
 
@@ -62,45 +48,25 @@ bool GPT::getToken()
     return false;
 }
 
-QString GPT::getResponse(QString prompt)
+QJsonObject GPT::getPromptJson(QString prompt)
 {
-    QUrl url = QUrl(m_baseUrl + QString("/backend-anon/conversation"));
-
-    QByteArray deviceId;
-
-    for (auto &it : m_cJar->cookiesForUrl(QUrl(m_baseUrl)))
-        if (it.name() == "oai-did") {
-            deviceId = it.value();
-            break;
-        }
-
-    QNetworkRequest request(url);
-    request.setRawHeader("Accept", "text/event-stream");
-    request.setRawHeader("Accept-Language", "en-GB,en;q=0.8");
-    request.setRawHeader("oai-device-id", deviceId);
-    request.setRawHeader("oai-language", "en-US");
-    request.setRawHeader("origin", "https://chat.openai.com");
-    request.setRawHeader("referer", "https://chat.openai.com/");
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
-    request.setRawHeader("openai-sentinel-chat-requirements-token", m_token.toUtf8());
-
-    QJsonObject json {
+    return {
         {"action", "next"},
         {"messages", QJsonArray {
-            QJsonObject {
-                    { "id", QUuid::createUuid().toString() },
-                    { "author",  QJsonObject {
-                            { "role", "user" }
+                            QJsonObject {
+                                { "id", QUuid::createUuid().toString() },
+                                { "author",  QJsonObject {
+                                                  { "role", "user" }
+                                              }
+                                },
+                                { "content", QJsonObject {
+                                                   { "content_type", "text" },
+                                                   { "parts", QJsonArray { prompt } }
+                                               }
+                                },
+                                { "metadata", QJsonObject {} }
+                            }
                         }
-                    },
-                    { "content", QJsonObject {
-                            { "content_type", "text" },
-                            { "parts", QJsonArray { prompt } }
-                        }
-                    },
-                    { "metadata", QJsonObject {} }
-                }
-            }
         },
 
         {"parent_message_id", QUuid::createUuid().toString()},
@@ -116,8 +82,44 @@ QString GPT::getResponse(QString prompt)
         {"force_nulligen", false},
         {"force_rate_limit", false}
     };
+}
 
-    QJsonDocument jDoc { json };
+void GPT::setHeaders(QNetworkRequest *request, QString type)
+{
+    if (type == "cookies") {
+        request->setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+    } else if (type == "token" || type == "response") {
+        QByteArray deviceId;
+
+        QList<QNetworkCookie> cookies = m_cJar->cookiesForUrl(QUrl(m_baseUrl));
+
+        for (int cookie = 0; cookie < cookies.length(); ++cookie)
+            if (cookies[cookie].name() == "oai-did") {
+                deviceId = cookies[cookie].value();
+                break;
+            }
+
+        request->setRawHeader("Accept", "text/event-stream");
+        request->setRawHeader("Accept-Language", "en-GB,en;q=0.8");
+        request->setRawHeader("oai-device-id", deviceId);
+        request->setRawHeader("oai-language", "en-US");
+        request->setRawHeader("origin", "https://chat.openai.com");
+        request->setRawHeader("referer", "https://chat.openai.com/");
+        request->setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+        if (type == "response") {
+            request->setRawHeader("openai-sentinel-chat-requirements-token", m_token.toUtf8());
+        }
+    }
+}
+
+QString GPT::getResponse(QString prompt)
+{
+    QUrl url = QUrl(m_baseUrl + QString("/backend-anon/conversation"));
+
+    QNetworkRequest request(url);
+    setHeaders(&request, "response");
+
+    QJsonDocument jDoc { getPromptJson(prompt) };
     QByteArray data = jDoc.toJson();
 
     QNetworkReply * reply = m_manager->post(request, data);

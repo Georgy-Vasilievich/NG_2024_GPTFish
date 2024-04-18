@@ -24,6 +24,8 @@ public:
 private:
     bool getCookies();
     bool getToken();
+    QJsonObject getPromptJson(QString);
+    void setHeaders(QNetworkRequest*, QString);
 
     QString m_token;
     QString m_baseUrl = "https://chat.openai.com";

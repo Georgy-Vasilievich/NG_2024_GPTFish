@@ -127,6 +127,10 @@ void Game::processPlayerMove(QString direction)
         ui->log->append(moveDescription);
         if (stop)
             break;
+
+        QEventLoop loop;
+        QTimer::singleShot(500, &loop, &QEventLoop::quit);
+        loop.exec();
     }
 }
 

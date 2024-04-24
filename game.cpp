@@ -176,14 +176,15 @@ void Game::stopAi()
     ui->buttonStopAi->setEnabled(false);
 }
 
-void Game::aiLoop()
-{
-    try {
-        GPT gpt;
-        while (m_aiActive)
-            processPlayerMove(gpt.getResponse(getAiPrompt()));
-    } catch (AccessException const&) {
-        ui->log->append("Unable to access ChatGPT!");
-        stopAi();
+void Game::aiLoop() {
+    while (true) {
+        try {
+            GPT gpt;
+            while (m_aiActive)
+                processPlayerMove(gpt.getResponse(getAiPrompt()));
+            break;
+        } catch (AccessException const&) {
+            ui->log->append("Unable to access ChatGPT!");
+        }
     }
 }

@@ -4,6 +4,7 @@ GPT::GPT(QObject *parent)
     : QObject{parent}
 {
     m_manager->setCookieJar(m_cJar);
+    m_manager->setTransferTimeout(5000);
     if (!getCookies())
         throw AccessException();
 }
@@ -20,9 +21,10 @@ bool GPT::getCookies()
 
     QEventLoop loop;
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    connect(reply, &QNetworkReply::errorOccurred, &loop, &QEventLoop::quit);
     loop.exec();
 
-    if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200)
+    if (!reply->error() && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200)
         return true;
     return false;
 }
@@ -38,9 +40,10 @@ bool GPT::getChatRequirements()
 
     QEventLoop loop;
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    connect(reply, &QNetworkReply::errorOccurred, &loop, &QEventLoop::quit);
     loop.exec();
 
-    if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200) {
+    if (!reply->error() && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200) {
         QJsonObject json = QJsonDocument::fromJson(reply->readAll()).object();
         m_token = json.value("token").toString().toUtf8();
         QJsonObject powObject = json.value("proofofwork").toObject();
@@ -166,9 +169,10 @@ QString GPT::getResponse(QString prompt)
 
     QEventLoop loop;
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    connect(reply, &QNetworkReply::errorOccurred, &loop, &QEventLoop::quit);
     loop.exec();
 
-    if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200) {
+    if (!reply->error() && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200) {
         QList responseList = QString(reply->readAll()).split("data: ");
         QString lastResponse = responseList.at(responseList.size() - 2);
         QString move = QJsonDocument::fromJson(lastResponse.toUtf8()).object()

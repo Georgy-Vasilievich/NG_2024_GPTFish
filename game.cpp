@@ -95,7 +95,7 @@ bool Game::checkPlayerCanMove(int x, int y)
 
 void Game::processPlayerMove(QString direction)
 {
-    bool illegal = false;
+    bool stop = false;
     if (!m_aiActive) return;
     int x = m_player.posx;
     int y = m_player.posy;
@@ -110,22 +110,22 @@ void Game::processPlayerMove(QString direction)
         bool canMove = checkPlayerCanMove(x, y);
         if (canMove) {
             moveDescription.append(QString(" and the move is made. New position is (%1; %2).").arg(x).arg(y));
+            m_player.posx = x;
+            m_player.posy = y;
+            renderMap();
             if (m_mapData[y][x] == '=') {
                 moveDescription.append(" and the game is won!");
                 m_gameWon = true;
                 stopAi();
                 ui->buttonStartAi->setEnabled(false);
-                break;
+                stop = true;
             }
-            m_player.posx = x;
-            m_player.posy = y;
-            renderMap();
         } else {
             moveDescription.append(" but the move is illegal");
-            illegal = true;
+            stop = true;
         }
         ui->log->append(moveDescription);
-        if (illegal)
+        if (stop)
             break;
     }
 }

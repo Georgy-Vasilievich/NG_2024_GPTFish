@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QRandomGenerator>
+#include <QTimer>
 #include "gpt.h"
 
 QT_BEGIN_NAMESPACE
@@ -36,6 +37,7 @@ private slots:
 private:
     void aiLoop();
     void generateMap();
+    QString getLegalMoves();
     bool checkPlayerCanMove(int, int);
     void processPlayerMove(QString);
     QString getAiPrompt();

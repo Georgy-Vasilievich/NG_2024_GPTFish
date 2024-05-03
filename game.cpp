@@ -46,9 +46,24 @@ void Game::generateMap()
     m_player.posy = 0;
 }
 
+QString Game::getLegalMoves()
+{
+    int x = m_player.posx;
+    int y = m_player.posy;
+    QString moves = "";
+
+    if (checkPlayerCanMove(x, y - 1)) moves.append("up,");
+    if (checkPlayerCanMove(x, y + 1)) moves.append("down,");
+    if (checkPlayerCanMove(x - 1, y)) moves.append("left,");
+    if (checkPlayerCanMove(x + 1, y)) moves.append("right,");
+
+    if (!moves.isEmpty()) moves.chop(1);
+
+    return moves;
+}
+
 void Game::renderMap()
 {
-    ui->map->clear();
     QString map = mapToText();
     if (ui->checkboxEmoji->isChecked() == true) {
         map.replace('@', "🐟");
@@ -76,12 +91,15 @@ QString Game::mapToText()
 
 void Game::restart()
 {
-    if (m_gameWon)
+    if (m_gameWon) {
         ui->buttonStartAi->setEnabled(true);
-    m_gameWon = false;
+        m_gameWon = false;
+    }
     ui->log->clear();
     ui->log->append("New game started");
-    generateMap();
+    do
+        generateMap();
+    while (getLegalMoves().isEmpty());
     renderMap();
 }
 
@@ -159,7 +177,9 @@ QString Game::getAiPrompt()
     prompt.chop(2);
     prompt.append(".\n");
     prompt.append(QString("The goal position is (%1; %2).\n").arg(goalX).arg(goalY));
-    prompt.append("Your response should only contain a list of comma-separated moves that need to be done to reach the goal. The list must not contain spaces, full stops, or any other characters, only letters and commas. The moves should be lowercase words \"up\", \"down\", \"left\" or \"right\". No extra words should be contained in the response.");
+    prompt.append("The first move should be one from the following: ");
+    prompt.append(getLegalMoves());
+    prompt.append("\nYour response should only contain a list of comma-separated moves that need to be done to reach the goal. The list must not contain spaces, full stops, or any other characters, only letters and commas. The moves should be lowercase words \"up\", \"down\", \"left\" or \"right\". The same move cannot be repeated more than nine times in a row. No extra words should be contained in the response.");
     return prompt;
 }
 
